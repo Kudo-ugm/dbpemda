@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
 
 # HARUS PALING ATAS
 st.set_page_config(layout="wide", page_title="Dashboard Pemda")
@@ -27,20 +27,24 @@ def load_data():
 
 rasio_df, interpretasi_df, keu_prov_df, kin_prov_df, keu_kab_df, kin_kab_df = load_data()
 
-# Plot helper
-def plot_line(df, title):
-    fig, ax = plt.subplots(figsize=(10, 5 + len(df["pemda"].unique()) * 0.5))  # resize dinamis
+# Plot helper pakai Plotly
+def plotly_chart(df, title, chart_type):
+    if df.empty:
+        st.warning("Data kosong, silakan pilih Pemda & Indikator.")
+        return
 
-    for pemda in df["pemda"].unique():
-        subset = df[df["pemda"] == pemda]
-        ax.plot(subset["tahun"], subset["nilai"], marker="o", label=pemda)
+    if chart_type == "Garis":
+        fig = px.line(df, x="tahun", y="nilai", color="pemda", markers=True)
+    elif chart_type == "Batang":
+        fig = px.bar(df, x="tahun", y="nilai", color="pemda", barmode="group")
+    elif chart_type == "Area":
+        fig = px.area(df, x="tahun", y="nilai", color="pemda")
+    else:
+        st.error("Tipe chart tidak dikenali.")
+        return
 
-    ax.set_title(title)
-    ax.set_xlabel("Tahun")
-    ax.set_ylabel("Nilai")
-    ax.legend(loc="best", fontsize="small", ncol=2, bbox_to_anchor=(1.05, 1))  # legend rapi kanan luar
-    plt.tight_layout()
-    st.pyplot(fig)
+    fig.update_layout(title=title, xaxis_title="Tahun", yaxis_title="Nilai", legend_title="Pemda", height=500)
+    st.plotly_chart(fig, use_container_width=True)
 
 # Sidebar filter inside tabs
 def tab_content(sheet_df, rasio_df, tab_title, key_prefix):
@@ -55,6 +59,8 @@ def tab_content(sheet_df, rasio_df, tab_title, key_prefix):
         indikator_options = sorted(sheet_df["indikator"].unique())
         selected_indikator = st.selectbox("Pilih Indikator", indikator_options, key=f"{key_prefix}_indikator")
 
+        chart_type = st.selectbox("Jenis Grafik", ["Garis", "Batang", "Area"], key=f"{key_prefix}_chart")
+
         deskripsi = rasio_df.loc[rasio_df["rasio"] == selected_indikator, "penjelasan"]
         st.markdown("### Deskripsi Indikator")
         st.info(deskripsi.values[0] if not deskripsi.empty else "-")
@@ -62,7 +68,7 @@ def tab_content(sheet_df, rasio_df, tab_title, key_prefix):
     with col2:
         if selected_pemda and selected_indikator:
             filtered_df = sheet_df[(sheet_df["pemda"].isin(selected_pemda)) & (sheet_df["indikator"] == selected_indikator)]
-            plot_line(filtered_df, tab_title)
+            plotly_chart(filtered_df, tab_title, chart_type)
 
 # App layout
 st.title("Dashboard Kinerja & Keuangan Pemda")
