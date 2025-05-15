@@ -29,14 +29,17 @@ rasio_df, interpretasi_df, keu_prov_df, kin_prov_df, keu_kab_df, kin_kab_df = lo
 
 # Plot helper
 def plot_line(df, title):
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 5 + len(df["pemda"].unique()) * 0.5))  # resize dinamis
+
     for pemda in df["pemda"].unique():
         subset = df[df["pemda"] == pemda]
         ax.plot(subset["tahun"], subset["nilai"], marker="o", label=pemda)
+
     ax.set_title(title)
     ax.set_xlabel("Tahun")
     ax.set_ylabel("Nilai")
-    ax.legend()
+    ax.legend(loc="best", fontsize="small", ncol=2, bbox_to_anchor=(1.05, 1))  # legend rapi kanan luar
+    plt.tight_layout()
     st.pyplot(fig)
 
 # Sidebar filter inside tabs
@@ -46,12 +49,9 @@ def tab_content(sheet_df, rasio_df, tab_title, key_prefix):
     with col1:
         st.subheader("Filter Data")
 
-        search_pemda = st.text_input("Cari Pemda", "", key=f"{key_prefix}_search")
         pemda_options = sorted(sheet_df["pemda"].unique())
-        if search_pemda:
-            pemda_options = [p for p in pemda_options if search_pemda.lower() in p.lower()]
-
         selected_pemda = st.multiselect("Pilih Pemda", pemda_options, key=f"{key_prefix}_pemda")
+
         indikator_options = sorted(sheet_df["indikator"].unique())
         selected_indikator = st.selectbox("Pilih Indikator", indikator_options, key=f"{key_prefix}_indikator")
 
