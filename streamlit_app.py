@@ -3,19 +3,23 @@ import pandas as pd
 import gspread
 import json
 from google.oauth2.service_account import Credentials
-import plotly.express as px
 
-# --- Google Sheets Auth ---
+# ====== Auth ======
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_info = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
 creds = Credentials.from_service_account_info(creds_info, scopes=scope)
 gc = gspread.authorize(creds)
 
-# --- Load Sheets ---
-def load_sheet(sheet_name):
-    sh = gc.open("NAMA_FILE_SHEET")  # Ganti sesuai nama file Google Sheets kamu
-    return pd.DataFrame(sh.worksheet(sheet_name).get_all_records())
+# ====== Load Sheet ======
+SHEET_ID = "1Zc6NxUalYApLvo0oDk2koIwCa_qXtuyat8WQbOXjo9Q"
 
+def load_sheet(sheet_name):
+    sh = gc.open_by_key(SHEET_ID)
+    worksheet = sh.worksheet(sheet_name)
+    data = worksheet.get_all_records()
+    return pd.DataFrame(data)
+
+# Load all sheets
 rasio_df = load_sheet("rasio")
 keu_prov_df = load_sheet("keu_prov")
 kin_prov_df = load_sheet("kin_prov")
@@ -25,97 +29,66 @@ kin_kab_df = load_sheet("kin_kab")
 try:
     interpretasi_df = load_sheet("Interpretasi")
 except:
-    interpretasi_df = pd.DataFrame()  # Biar blank kalo sheet kosong
+    interpretasi_df = pd.DataFrame(columns=["kategori", "penjelasan"])
 
-# --- Sidebar Pilihan Rasio ---
-st.sidebar.header("Pilih Rasio")
-selected_rasio = st.sidebar.selectbox("Rasio", rasio_df['rasio'] if not rasio_df.empty else [])
+# ====== UI Layout ======
+st.set_page_config(layout="wide", page_title="Dashboard Keuda")
 
-# --- Deskripsi Rasio ---
-if not rasio_df.empty:
-    deskripsi_rasio = rasio_df.loc[rasio_df['rasio'] == selected_rasio, 'penjelasan'].values[0]
-else:
-    deskripsi_rasio = "Deskripsi belum tersedia."
+st.title("Dashboard Kinerja & Keuangan")
 
-# --- Sidebar List Pemda ---
-st.sidebar.header("Pilih Daerah")
-# Kumpulkan daftar provinsi/kabupaten/kota dari semua sheet
-all_pemda = pd.concat([
-    keu_prov_df['pemda'], kin_prov_df['pemda'],
-    keu_kab_df['pemda'], kin_kab_df['pemda']
-]).drop_duplicates().sort_values().tolist()
+tab1, tab2, tab3, tab4 = st.tabs(["Kondisi Keuangan Provinsi", "Kinerja Keuangan Provinsi", 
+                                  "Kondisi Keuangan Kab/Kota", "Kinerja Keuangan Kab/Kota"])
 
-selected_pemda = st.sidebar.multiselect("Cari & Pilih Pemda", options=all_pemda, default=[])
+# ====== Component Function ======
+def display_dashboard(df, level):
+    # Sidebar left: Pemda Selector
+    st.sidebar.subheader(f"Daftar {level}")
+    search_pemda = st.sidebar.text_input(f"Cari {level}")
+    pemda_list = sorted(df["Pemda"].unique())
+    filtered_pemda = [p for p in pemda_list if search_pemda.lower() in p.lower()]
+    selected_pemda = st.sidebar.multiselect(f"Pilih {level}", filtered_pemda)
 
-# --- Tabs Layout ---
-tab1, tab2, tab3, tab4 = st.tabs([
-    "Kondisi Keuangan Provinsi", 
-    "Kinerja Keuangan Provinsi", 
-    "Kondisi Keuangan Kab/Kota", 
-    "Kinerja Keuangan Kab/Kota"
-])
+    # Sidebar: Rasio Selector
+    selected_rasio = st.sidebar.selectbox("Pilih Rasio", rasio_df["rasio"])
 
-# --- Function for Chart Rendering ---
-def render_chart(df, title):
+    # Main: Chart
+    chart_df = df[df["Indikator"] == selected_rasio]
     if selected_pemda:
-        df_filtered = df[df['pemda'].isin(selected_pemda)]
-    else:
-        df_filtered = df
-    if df_filtered.empty:
-        st.warning("Data tidak tersedia untuk pilihan Anda.")
-        return
-    fig = px.line(df_filtered, x="tahun", y="nilai", color="pemda", title=title)
-    st.plotly_chart(fig, use_container_width=True)
+        chart_df = chart_df[chart_df["Pemda"].isin(selected_pemda)]
 
-# --- Function for Interpretasi Box ---
-def show_interpretasi(kategori):
-    if not interpretasi_df.empty and 'kategori' in interpretasi_df.columns:
-        interp_data = interpretasi_df.loc[interpretasi_df['kategori'] == kategori, 'penjelasan']
-        if not interp_data.empty:
-            interp_text = interp_data.values[0]
+    chart_pivot = chart_df.pivot_table(index="Tahun", columns="Pemda", values="Nilai")
+    st.subheader(f"Grafik {level} - {selected_rasio}")
+    st.line_chart(chart_pivot)
+
+    # Right Column: Deskripsi Rasio + Interpretasi
+    col1, col2 = st.columns(2)
+
+    # Deskripsi Rasio
+    rasio_desc = rasio_df[rasio_df["rasio"] == selected_rasio]["penjelasan"].values
+    if rasio_desc:
+        col1.markdown(f"### Deskripsi Rasio\n{rasio_desc[0]}")
+    else:
+        col1.markdown("### Deskripsi Rasio\n(Tidak tersedia)")
+
+    # Interpretasi (optional blank)
+    if not interpretasi_df.empty:
+        interp_text = interpretasi_df.loc[interpretasi_df["kategori"] == selected_rasio, "penjelasan"].values
+        if interp_text:
+            col2.markdown(f"### Interpretasi\n{interp_text[0]}")
         else:
-            interp_text = "Interpretasi belum tersedia."
+            col2.markdown("### Interpretasi\n(Tidak tersedia)")
     else:
-        interp_text = "Interpretasi belum tersedia."
-    st.info(interp_text)
+        col2.markdown("### Interpretasi\n(Belum ada data)")
 
-# --- Layout per Tab ---
+# ====== Tabs ======
 with tab1:
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        render_chart(keu_prov_df, "Kondisi Keuangan Provinsi")
-    with col2:
-        st.subheader("Deskripsi Rasio")
-        st.write(deskripsi_rasio)
-        st.subheader("Interpretasi")
-        show_interpretasi("keu_prov")
+    display_dashboard(keu_prov_df, "Provinsi")
 
 with tab2:
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        render_chart(kin_prov_df, "Kinerja Keuangan Provinsi")
-    with col2:
-        st.subheader("Deskripsi Rasio")
-        st.write(deskripsi_rasio)
-        st.subheader("Interpretasi")
-        show_interpretasi("kin_prov")
+    display_dashboard(kin_prov_df, "Provinsi")
 
 with tab3:
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        render_chart(keu_kab_df, "Kondisi Keuangan Kab/Kota")
-    with col2:
-        st.subheader("Deskripsi Rasio")
-        st.write(deskripsi_rasio)
-        st.subheader("Interpretasi")
-        show_interpretasi("keu_kab")
+    display_dashboard(keu_kab_df, "Kabupaten/Kota")
 
 with tab4:
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        render_chart(kin_kab_df, "Kinerja Keuangan Kab/Kota")
-    with col2:
-        st.subheader("Deskripsi Rasio")
-        st.write(deskripsi_rasio)
-        st.subheader("Interpretasi")
-        show_interpretasi("kin_kab")
+    display_dashboard(kin_kab_df, "Kabupaten/Kota")
