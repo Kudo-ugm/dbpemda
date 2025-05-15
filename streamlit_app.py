@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# HARUS PALING ATAS
+st.set_page_config(layout="wide", page_title="Dashboard Pemda")
+
 # Load data
 @st.cache_data
 def load_data():
@@ -62,7 +65,6 @@ def tab_content(sheet_df, rasio_df, tab_title, key_prefix):
             plot_line(filtered_df, tab_title)
 
 # App layout
-st.set_page_config(layout="wide", page_title="Dashboard Pemda")
 st.title("Dashboard Kinerja & Keuangan Pemda")
 
 tabs = st.tabs(["Keuangan Provinsi", "Kinerja Provinsi", "Keuangan Kab/Kota", "Kinerja Kab/Kota"])
