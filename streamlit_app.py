@@ -1,31 +1,20 @@
 import streamlit as st
 import pandas as pd
-import gspread
-import json
-from google.oauth2.service_account import Credentials
+import altair as alt
 
-# ======= Konfigurasi ========
-SHEET_ID = "1Zc6NxUalYApLvo0oDk2koIwCa_qXtuyat8WQbOXjo9Q"
-
-# ======= Load Google Credentials ========
-creds_info = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = Credentials.from_service_account_info(creds_info, scopes=scope)
-gc = gspread.authorize(credentials)
-
-# ======= Cache Load All Sheets ========
-@st.cache_data(show_spinner="Loading data from Google Sheets...")
+# ======= Load Excel Local ========
+@st.cache_data(show_spinner="Loading local Excel file...")
 def load_all_data():
-    sh = gc.open_by_key(SHEET_ID)
-
-    rasio_df = pd.DataFrame(sh.worksheet("rasio").get_all_records())
-    keu_prov_df = pd.DataFrame(sh.worksheet("keu_prov").get_all_records())
-    kin_prov_df = pd.DataFrame(sh.worksheet("kin_prov").get_all_records())
-    keu_kab_df = pd.DataFrame(sh.worksheet("keu_kab").get_all_records())
-    kin_kab_df = pd.DataFrame(sh.worksheet("kin_kab").get_all_records())
+    xls = pd.ExcelFile("data.xlsx")
+    
+    rasio_df = pd.read_excel(xls, "rasio")
+    keu_prov_df = pd.read_excel(xls, "keu_prov")
+    kin_prov_df = pd.read_excel(xls, "kin_prov")
+    keu_kab_df = pd.read_excel(xls, "keu_kab")
+    kin_kab_df = pd.read_excel(xls, "kin_kab")
     
     try:
-        interpretasi_df = pd.DataFrame(sh.worksheet("Interpretasi").get_all_records())
+        interpretasi_df = pd.read_excel(xls, "Interpretasi")
     except:
         interpretasi_df = pd.DataFrame(columns=["kategori", "penjelasan"])
 
@@ -64,8 +53,6 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # ======= Plot Helper ========
-import altair as alt
-
 def plot_chart(df, title):
     if not selected_pemda:
         st.warning("Pilih minimal satu daerah terlebih dahulu.")
