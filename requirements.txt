@@ -1,4 +1,5 @@
-streamlit
-gspread
 pandas
-plotly
+openpyxl
+gspread
+google-auth
+streamlit
