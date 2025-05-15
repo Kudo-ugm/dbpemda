@@ -18,41 +18,33 @@ def load_all_data():
 
 rasio_df, keu_prov_df, kin_prov_df, keu_kab_df, kin_kab_df, interpretasi_df = load_all_data()
 
-# Gabungkan list Pemda dari provinsi dan kabupaten/kota
 all_pemda = sorted(set(keu_prov_df["Pemda"]).union(keu_kab_df["Pemda"]))
 
-st.title("Dashboard Kinerja dan Keuangan Pemda")
-
-# --- Layout Pilihan ---
-
-col1, col2, col3 = st.columns([1, 3, 2])
-
-with col1:
-    st.subheader("Pilih Pemda")
-    search_pemda = st.text_input("Cari Pemda...")
+# Sidebar kanan untuk pilihan
+with st.sidebar:
+    st.header("Filter Pilihan")
+    selected_rasio = st.selectbox("Pilih Rasio", options=rasio_df["rasio"])
+    search_pemda = st.text_input("Cari Pemda")
     filtered_pemda = [p for p in all_pemda if search_pemda.lower() in p.lower()]
     selected_pemda = st.multiselect("Pilih Pemda (bisa lebih dari 1)", options=filtered_pemda)
-    
-with col2:
-    st.subheader("Pilih Rasio")
-    selected_rasio = st.selectbox("Rasio", options=rasio_df["rasio"])
-    
-with col3:
+
+# Tampilkan deskripsi rasio di sidebar bawah
+with st.sidebar:
+    st.markdown("---")
     st.subheader("Deskripsi Rasio")
     deskripsi = rasio_df.loc[rasio_df["rasio"] == selected_rasio, "penjelasan"]
     st.write(deskripsi.values[0] if not deskripsi.empty else "-")
 
-# --- Tabs untuk Grafik ---
+st.title("Dashboard Kinerja dan Keuangan Pemda")
 
 tab1, tab2, tab3, tab4 = st.tabs([
-    "Kondisi Keuangan Provinsi", 
-    "Kinerja Keuangan Provinsi", 
-    "Kondisi Keuangan Kabupaten/Kota", 
+    "Kondisi Keuangan Provinsi",
+    "Kinerja Keuangan Provinsi",
+    "Kondisi Keuangan Kabupaten/Kota",
     "Kinerja Keuangan Kabupaten/Kota"
 ])
 
 def filter_data(df, pemda_list, indikator):
-    # Filter data sesuai indikator dan pemda
     if pemda_list:
         return df[(df["Pemda"].isin(pemda_list)) & (df["Indikator"] == indikator)]
     else:
@@ -73,7 +65,6 @@ def plot_graph(df, title):
     ax.legend()
     st.pyplot(fig)
 
-# Fungsi ambil interpretasi sesuai tab (kategori)
 def get_interpretasi(kategori):
     interp = interpretasi_df.loc[interpretasi_df["kategori"] == kategori, "penjelasan"]
     return interp.values[0] if not interp.empty else "Belum ada interpretasi untuk kategori ini."
