@@ -71,9 +71,9 @@ def tab_content(sheet_df, rasio_df, tab_title, key_prefix):
             plotly_chart(filtered_df, tab_title, chart_type)
 
 # App layout
-st.title("Dashboard Kinerja & Keuangan Pemda")
+st.title("Dashboard Kondisi & Kinerja Keuangan Pemerintah Daerah")
 
-tabs = st.tabs(["Keuangan Provinsi", "Kinerja Provinsi", "Keuangan Kab/Kota", "Kinerja Kab/Kota"])
+tabs = st.tabs(["Kondisi Keuangan Provinsi", "Kinerja Keuangan Provinsi", "Kondisi Keuangan Kab/Kota", "Kinerja Keuangan Kab/Kota"])
 
 with tabs[0]:
     tab_content(keu_prov_df, rasio_df, "Keuangan Provinsi", "keu_prov")
