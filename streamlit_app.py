@@ -1,78 +1,106 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
 
+# HARUS PALING ATAS
 st.set_page_config(layout="wide", page_title="Dashboard Pemda")
 
+# Load data
 @st.cache_data
 def load_data():
     xls = pd.ExcelFile("data.xlsx")
-    rasio = pd.read_excel(xls, "rasio")
-    keu_prov = pd.read_excel(xls, "keu_prov")
-    kin_prov = pd.read_excel(xls, "kin_prov")
-    keu_kab = pd.read_excel(xls, "keu_kab")
-    kin_kab = pd.read_excel(xls, "kin_kab")
-    interpretasi = pd.read_excel(xls, "interpretasi")
-    return rasio, keu_prov, kin_prov, keu_kab, kin_kab, interpretasi
+    rasio_df = pd.read_excel(xls, "rasio")
+    interpretasi_df = pd.read_excel(xls, "interpretasi")
 
-rasio_df, keu_prov_df, kin_prov_df, keu_kab_df, kin_kab_df, interpretasi_df = load_data()
+    def load_sheet(sheet):
+        return pd.read_excel(xls, sheet).rename(columns={
+            "Tahun": "tahun", "Pemda": "pemda", "Kluster": "kluster",
+            "Indikator": "indikator", "Nilai": "nilai"
+        })
 
-def plot_graph(df, judul):
+    keu_prov = load_sheet("keu_prov")
+    kin_prov = load_sheet("kin_prov")
+    keu_kab = load_sheet("keu_kab")
+    kin_kab = load_sheet("kin_kab")
+
+    return rasio_df, interpretasi_df, keu_prov, kin_prov, keu_kab, kin_kab
+
+rasio_df, interpretasi_df, keu_prov_df, kin_prov_df, keu_kab_df, kin_kab_df = load_data()
+
+# Plot helper pakai Plotly
+def plotly_chart(df, title, chart_type):
     if df.empty:
-        st.warning("Tidak ada data untuk ditampilkan.")
+        st.warning("Data kosong, silakan pilih Pemda & Indikator.")
         return
-    fig, ax = plt.subplots(figsize=(10, 5))
-    for label, grp in df.groupby("label"):
-        grp = grp.sort_values("Tahun")
-        ax.plot(grp["Tahun"], grp["Nilai"], marker='o', label=label)
-    ax.set_title(judul)
-    ax.set_xlabel("Tahun")
-    ax.set_ylabel("Nilai")
-    ax.legend()
-    st.pyplot(fig)
 
-tab1, tab2, tab3, tab4 = st.tabs(["Kinerja Provinsi", "Kinerja Kab/Kota", "Keuangan Provinsi", "Keuangan Kab/Kota"])
+    # Tambah kolom label gabungan: "Pemda (Kluster X)"
+    df = df.copy()
+    df["label"] = df["pemda"] + " (Kluster " + df["kluster"].astype(str) + ")"
 
-tabs = [
-    ("Kinerja Keuangan Provinsi", kin_prov_df, tab1),
-    ("Kinerja Kab/Kota", kin_kab_df, tab2),
-    ("Keuangan Provinsi", keu_prov_df, tab3),
-    ("Keuangan Kab/Kota", keu_kab_df, tab4),
-]
+    if chart_type == "Garis":
+        fig = px.line(df, x="tahun", y="nilai", color="label", markers=True)
+    elif chart_type == "Batang":
+        fig = px.bar(df, x="tahun", y="nilai", color="label", barmode="group")
+    elif chart_type == "Area":
+        fig = px.area(df, x="tahun", y="nilai", color="label")
+    else:
+        st.error("Tipe chart tidak dikenali.")
+        return
 
-for judul, df, tab in tabs:
-    with tab:
-        st.header(judul)
-        pemda_options = sorted(df["Pemda"].unique())
-        indikator_options = sorted(df["Indikator"].unique())
+    fig.update_layout(title=title, xaxis_title="Tahun", yaxis_title="Nilai", legend_title="Pemda", height=500)
+    st.plotly_chart(fig, use_container_width=True)
 
-        selected_pemda = st.sidebar.multiselect(
-            f"Pilih Pemda - {judul}", pemda_options, default=pemda_options[:1], key=f"pemda_{judul}"
-        )
-        selected_indikator = st.sidebar.selectbox(
-            f"Pilih Indikator - {judul}", indikator_options, key=f"indikator_{judul}"
-        )
+# Sidebar filter inside tabs
+def tab_content(sheet_df, rasio_df, tab_title, key_prefix):
+    col1, col2 = st.columns([1, 3])
 
-        filtered_df = df[
-            (df["Pemda"].isin(selected_pemda)) & (df["Indikator"] == selected_indikator)
-        ].copy()
+    with col1:
+        st.subheader("Filter Data")
 
-        if not filtered_df.empty:
-            # Tambah kolom label gabungan: "Pemda (Kluster X)"
-            filtered_df["label"] = filtered_df["Pemda"] + " (Kluster " + filtered_df["Kluster"].astype(str) + ")"
-        else:
-            filtered_df["label"] = ""
+        pemda_options = sorted(sheet_df["pemda"].unique())
+        selected_pemda = st.multiselect("Pilih Pemda", pemda_options, key=f"{key_prefix}_pemda")
 
-        plot_graph(filtered_df, f"{judul} - {selected_indikator}")
+        indikator_options = sorted(sheet_df["indikator"].unique())
+        selected_indikator = st.selectbox("Pilih Indikator", indikator_options, key=f"{key_prefix}_indikator")
 
-        # Tempat untuk interpretasi - sementara dikosongkan
-        st.subheader("Interpretasi")
-        with st.container():
+        chart_type = st.selectbox("Jenis Grafik", ["Garis", "Batang", "Area"], key=f"{key_prefix}_chart")
+
+        deskripsi = rasio_df.loc[rasio_df["rasio"] == selected_indikator, "penjelasan"]
+        st.markdown("### Deskripsi Indikator")
+        st.info(deskripsi.values[0] if not deskripsi.empty else "-")
+
+    with col2:
+        if selected_pemda and selected_indikator:
+            filtered_df = sheet_df[
+                (sheet_df["pemda"].isin(selected_pemda)) &
+                (sheet_df["indikator"] == selected_indikator)
+            ]
+            plotly_chart(filtered_df, f"{tab_title} - {selected_indikator}", chart_type)
+
+            # Interpretasi box kosong (tanpa error)
+            st.markdown("### Interpretasi")
             st.markdown(
                 """
                 <div style='border:1px solid #ddd; border-radius:8px; padding:10px; min-height:100px; background-color:#f9f9f9;'>
-                <!-- Isi interpretasi nanti dimasukkan di sini -->
+                <!-- Nanti isi interpretasi di sini -->
                 </div>
                 """,
-                unsafe_allow_html=True,
+                unsafe_allow_html=True
             )
+
+# App layout
+st.title("Dashboard Kinerja & Keuangan Pemda")
+
+tabs = st.tabs(["Keuangan Provinsi", "Kinerja Provinsi", "Keuangan Kab/Kota", "Kinerja Kab/Kota"])
+
+with tabs[0]:
+    tab_content(keu_prov_df, rasio_df, "Keuangan Provinsi", "keu_prov")
+
+with tabs[1]:
+    tab_content(kin_prov_df, rasio_df, "Kinerja Provinsi", "kin_prov")
+
+with tabs[2]:
+    tab_content(keu_kab_df, rasio_df, "Keuangan Kab/Kota", "keu_kab")
+
+with tabs[3]:
+    tab_content(kin_kab_df, rasio_df, "Kinerja Kab/Kota", "kin_kab")
