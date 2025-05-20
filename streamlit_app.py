@@ -58,7 +58,7 @@ def tab_content(sheet_df, rasio_df, tab_title, key_prefix):
         st.subheader("Filter Data")
 
         pemda_options = sorted(sheet_df["pemda"].unique())
-        selected_pemda = st.multiselect("Pilih Pemda", pemda_options, key=f"{key_prefix}_pemda")
+        selected_pemda = st.multiselect("Pilih Pemda (Bisa lebih dari 1", pemda_options, key=f"{key_prefix}_pemda")
 
         indikator_options = sorted(sheet_df["indikator"].unique())
         selected_indikator = st.selectbox("Pilih Indikator", indikator_options, key=f"{key_prefix}_indikator")
